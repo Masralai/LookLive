@@ -1,0 +1,32 @@
+[project]
+name = "looklive"
+version = "0.1.0"
+description = "Real-Time Face Detection Video Streaming System"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.hatch]
+targets = { "backend" = { "path": "backend" } }
+
+[tool.hatch.envs.default]
+features = ["test"]
+
+[tool.hatch.envs.default.features]
+test = ["test"]
+
+[tool.hatch.envs.test.scripts]
+test = "pytest {args:test/}"
+lint = "ruff check backend/ tests/"
+
+[project.scripts]
+looklive-test = "pytest"
+looklive-lint = "ruff"
+looklive-format = "ruff format"
