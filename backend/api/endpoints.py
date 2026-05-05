@@ -2,8 +2,11 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from PIL import Image
 import io
 import base64
+import logging
 from services.face_detector import get_detector
 from utils.draw import draw_roi
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -12,7 +15,15 @@ async def ingest_frame(file: UploadFile = File(...)):
     """Receive video frame, detect face, draw ROI, return processed frame"""
     try:
         contents = await file.read()
-        image = Image.open(io.BytesIO(contents))
+        
+        if not contents:
+            raise HTTPException(status_code=400, detail="Empty file")
+        
+        try:
+            image = Image.open(io.BytesIO(contents))
+            image = image.convert("RGB")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid image format")
         
         detector = get_detector()
         bbox = detector.detect_face(image)
@@ -28,5 +39,8 @@ async def ingest_frame(file: UploadFile = File(...)):
             "roi": bbox,
             "frame": encoded
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Ingest error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
