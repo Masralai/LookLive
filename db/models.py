@@ -1,27 +1,29 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Index
+from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 import os
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/looklive")
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, pool_size=5, max_overflow=10, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 class ROIRecord(Base):
     __tablename__ = "roi_records"
+    __table_args__ = (
+        Index('idx_session_frame', 'session_id', 'frame_id'),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(String(64), nullable=False)
-    frame_id = Column(Integer, nullable=False)
+    session_id = Column(String(64), nullable=False, index=True)
+    frame_id = Column(Integer, nullable=False, index=True)
     bbox_x = Column(Integer)
     bbox_y = Column(Integer)
     bbox_w = Column(Integer)
     bbox_h = Column(Integer)
     confidence = Column(Float)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
 
 def init_db():
     Base.metadata.create_all(bind=engine)
