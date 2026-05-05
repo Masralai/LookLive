@@ -2,7 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv
+RUN pip install uv && \
+    rm -rf /root/.cache/pip
 
 COPY requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
