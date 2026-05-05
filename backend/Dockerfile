@@ -2,14 +2,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install uv && \
-    rm -rf /root/.cache/pip
+# Install uv
+RUN pip install uv
 
-COPY requirements.txt .
-RUN uv pip install --system --no-cache -r requirements.txt
+# Copy pyproject.toml and lock files
+COPY pyproject.toml*.toml ./
 
+# Install dependencies with uv
+RUN uv pip install --system --no-cache -e . || uv pip install --system --no-cache -r pyproject.toml
+
+# Add non-root user
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
 
+# Copy application code
 COPY --chown=appuser:appgroup . .
 
 USER appuser
