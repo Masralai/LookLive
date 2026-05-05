@@ -21,11 +21,6 @@ services:
       resources:
         limits:
           memory: 1G
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
   frontend:
     build:

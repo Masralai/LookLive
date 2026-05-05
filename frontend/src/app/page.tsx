@@ -22,8 +22,8 @@ export default function Home() {
             Real-Time Face Detection
           </h2>
           <p className="text-lg text-stone-whisper max-w-xl mx-auto mb-8">
-            Detect faces in real-time video streams with ROI bounding boxes. 
-            Powered by MediaPipe for lightning-fast detection without OpenCV.
+            Detect faces in real-time video streams with ROI bounding boxes.
+            Powered by YOLOv8 for real-time detection without OpenCV.
           </p>
         </div>
       </section>
@@ -40,13 +40,13 @@ export default function Home() {
             <div className="p-6 bg-canvas-pearl rounded-[7.42183px]">
               <h3 className="text-lg font-medium mb-2">Fast Detection</h3>
               <p className="text-sm text-stone-whisper">
-                MediaPipe delivers sub-second face detection at 30+ FPS
+                YOLOv8 delivers real-time detection at 30+ FPS
               </p>
             </div>
             <div className="p-6 bg-canvas-pearl rounded-[7.42183px]">
               <h3 className="text-lg font-medium mb-2">No OpenCV</h3>
               <p className="text-sm text-stone-whisper">
-                Lightweight MediaPipe implementation, no heavy dependencies
+                Lightweight YOLOv8 implementation, no heavy dependencies
               </p>
             </div>
             <div className="p-6 bg-canvas-pearl rounded-[7.42183px]">

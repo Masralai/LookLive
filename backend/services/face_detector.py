@@ -1,6 +1,7 @@
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
+import torch
 
 
 class FaceDetector:
@@ -10,6 +11,7 @@ class FaceDetector:
     def __init__(self):
         if FaceDetector._model is None:
             FaceDetector._model = YOLO('yolov8n.pt')
+            self.device = 0 if torch.cuda.is_available() else 'cpu'
 
     def detect_face(self, image: Image.Image):
         """Detect person in PIL Image using YOLO, return bounding box or None"""
@@ -17,7 +19,7 @@ class FaceDetector:
             return None
 
         frame_rgb = np.array(image.convert('RGB'))
-        results = self._model(frame_rgb, verbose=False, device=0)[0]
+        results = self._model(frame_rgb, verbose=False, device=self.device)[0]
 
         boxes = results.boxes
         if boxes is None or len(boxes) == 0:
