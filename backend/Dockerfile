@@ -5,17 +5,21 @@ WORKDIR /app
 # Install uv
 RUN pip install uv
 
-# Copy pyproject.toml and lock files
-COPY pyproject.toml*.toml ./
+# Copy pyproject.toml first (layer caching)
+COPY pyproject.toml .
 
 # Install dependencies with uv
-RUN uv pip install --system --no-cache -e . || uv pip install --system --no-cache -r pyproject.toml
+RUN uv pip install --system --no-cache -r pyproject.toml || true
 
-# Add non-root user
-RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
+# Add non-root user (Debian-based)
+RUN groupadd -r appgroup -g 1001 && useradd -r -u 1001 -g appgroup -s /bin/sh appuser
 
 # Copy application code
-COPY --chown=appuser:appgroup . .
+COPY main.py ./
+COPY api ./api
+COPY services ./services
+COPY db ./db
+COPY utils ./utils
 
 USER appuser
 
