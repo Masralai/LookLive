@@ -63,6 +63,3 @@ looklive/
 | `DATABASE_URL` | postgresql://postgres:postgres@db:5432/looklive | PostgreSQL connection |
 | `NEXT_PUBLIC_WS_URL` | ws://localhost:8000/ws/video | WebSocket URL |
 
-## License
-
-MIT

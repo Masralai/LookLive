@@ -1,35 +1,48 @@
 import numpy as np
 from PIL import Image
-from mtcnn import MTCNN
+from ultralytics import YOLO
 
 
 class FaceDetector:
     _instance = None
+    _model = None
 
     def __init__(self):
-        self.detector = MTCNN()
+        if FaceDetector._model is None:
+            FaceDetector._model = YOLO('yolov8n.pt')
 
     def detect_face(self, image: Image.Image):
-        """Detect face in PIL Image, return bounding box or None"""
+        """Detect person in PIL Image using YOLO, return bounding box or None"""
         if image is None:
             return None
 
         frame_rgb = np.array(image.convert('RGB'))
-        results = self.detector.detect_faces(frame_rgb)
+        results = self._model(frame_rgb, verbose=False, device=0)[0]
 
-        if not results:
+        boxes = results.boxes
+        if boxes is None or len(boxes) == 0:
             return None
 
-        # Get first face (PRD: single face assumption)
-        face = results[0]
-        box = face['box']
+        best_box = None
+        best_conf = 0.0
+        for box in boxes:
+            cls = int(box.cls[0].cpu().numpy())
+            conf = float(box.conf[0].cpu().numpy())
+            if cls == 0 and conf > best_conf:
+                best_conf = conf
+                best_box = box
+
+        if best_box is None:
+            return None
+
+        box = best_box.xyxy[0].cpu().numpy()
 
         return {
             'x': int(box[0]),
             'y': int(box[1]),
-            'w': int(box[2]),
-            'h': int(box[3]),
-            'confidence': float(face['confidence'])
+            'w': int(box[2] - box[0]),
+            'h': int(box[3] - box[1]),
+            'confidence': best_conf
         }
 
 

@@ -69,19 +69,6 @@ export function VideoStream({ onROIChange }: VideoStreamProps) {
           setRoi(data.roi);
           onROIChange?.(data.roi);
         }
-        if (data.frame) {
-          const displayCanvas = canvasRef.current;
-          if (displayCanvas) {
-            const ctx = displayCanvas.getContext("2d");
-            if (ctx) {
-              const img = new Image();
-              img.onload = () => {
-                ctx.drawImage(img, 0, 0);
-              };
-              img.src = `data:image/jpeg;base64,${data.frame}`;
-            }
-          }
-        }
       } catch (e) {
         console.error("Parse error:", e);
       }
@@ -121,7 +108,7 @@ export function VideoStream({ onROIChange }: VideoStreamProps) {
     let interval: NodeJS.Timeout;
 
     if (connected) {
-      interval = setInterval(sendFrame, 100);
+      interval = setInterval(sendFrame, 30); // ~33 FPS for smoother tracking
     }
 
     return () => {

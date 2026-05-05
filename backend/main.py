@@ -1,7 +1,7 @@
-import base64
+import asyncio
 import io
-import uuid
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -13,7 +13,6 @@ from PIL import Image
 from api.endpoints import router as api_router
 from api.roi import router as roi_router, set_roi
 from services.face_detector import get_detector
-from utils.draw import draw_roi
 from db.models import init_db, save_roi
 
 # Configure logging
@@ -105,20 +104,13 @@ async def websocket_video(websocket: WebSocket):
                     await websocket.send_json({"error": "Invalid image data", "frame": None})
                     continue
                 
-                # Detect face
-                bbox = detector.detect_face(image)
-                
-                # Draw ROI (always returns an image, even if no face)
-                processed = draw_roi(image, bbox)
-                
-                # Encode the processed frame
-                buf = io.BytesIO()
-                processed.save(buf, format='JPEG', quality=75)
-                frame_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-                
+                # Detect face (run in thread pool to avoid blocking event loop)
+                loop = asyncio.get_event_loop()
+                bbox = await loop.run_in_executor(None, detector.detect_face, image)
+
+                # Send only ROI (not frame) for real-time performance
                 response = {
                     "roi": bbox,
-                    "frame": frame_b64,
                     "frame_id": frame_num
                 }
                 await websocket.send_json(response)

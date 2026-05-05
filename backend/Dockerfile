@@ -1,6 +1,12 @@
-FROM python:3.11-slim
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
 
 WORKDIR /app
+
+# Install Python, uv, curl, and OpenGL libraries for OpenCV
+RUN apt-get update && apt-get install -y \
+    python3.11 python3-pip curl \
+    libgl1-mesa-glx libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install uv
 RUN pip install uv
@@ -11,7 +17,10 @@ COPY pyproject.toml .
 # Install dependencies with uv
 RUN uv pip install --system --no-cache -r pyproject.toml || true
 
-# Add non-root user (Debian-based)
+# Download YOLOv8n model (standard - will auto-download)
+RUN python3 -c "from ultralytics import YOLO; model = YOLO('yolov8n.pt'); print('Model downloaded')"
+
+# Add non-root user
 RUN groupadd -r appgroup -g 1001 && useradd -r -u 1001 -g appgroup -s /bin/sh appuser
 
 # Copy application code
