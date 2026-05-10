@@ -46,7 +46,7 @@ def test_face_detector_returns_bbox():
     from services.face_detector import FaceDetector
     
     detector = FaceDetector()
-    assert detector.face_detector is not None
+    assert detector._model is not None
 
 
 def test_draw_roi_adds_rectangle():
