@@ -28,18 +28,21 @@ Key design decisions:
 
 ```mermaid
 flowchart TB
-    subgraph Client["Frontend (Next.js)"]
-        Camera[("WebRTC Camera")]
-        Canvas[HTML Canvas]
-        Overlay[ROI Overlay]
-        WebSocketClient[WebSocket Client]
-    end
+    subgraph Docker["Docker Container"]
+        subgraph Frontend["Frontend (Next.js)"]
+            Camera[("WebRTC Camera")]
+            Canvas[HTML Canvas]
+            Overlay[ROI Overlay]
+            WebSocketClient[WebSocket Client]
+        end
 
-    subgraph Backend["Backend (FastAPI)"]
-        WebSocketServer[WebSocket /ws/video]
-        APIEndpoint[REST API /api/video/ingest]
-        FaceDetector[YOLOv8 Face Detector]
-        ROIManager[ROI Manager]
+        subgraph Backend["Backend (FastAPI)"]
+            WebSocketServer[WebSocket /ws/video]
+            APIEndpoint[REST API /api/video/ingest]
+            FaceDetector[YOLOv8 Face Detector]
+            ROIManager[ROI Manager]
+        end
+
         DB[PostgreSQL]
     end
 
@@ -59,13 +62,15 @@ flowchart TB
     ROIManager -->|Broadcast| WebSocketServer
     WebSocketServer -->|ROI JSON| WebSocketClient
     WebSocketClient -->|Update| Overlay
-    
+
     APIEndpoint --> FaceDetector
     FaceDetector --> YOLO
     YOLO --> BBox
     BBox --> Draw[Draw ROI with Pillow]
     Draw -->|Base64 Image| APIEndpoint
 ```
+
+![Architecture Diagram](./architecture.png)
 
 ### Data Flow
 
@@ -262,14 +267,42 @@ Real-time bidirectional streaming. Send JPEG frames as binary data; receive ROI 
    npm run dev
    ```
 
-### Docker Compose (CPU only, no GPU)
+### Docker Compose
 
 ```bash
 docker compose up --build
 ```
 
 > [!NOTE]
-> Docker Compose does not include GPU passthrough. For GPU acceleration, use the local development setup above.
+> GPU acceleration in Docker requires the **NVIDIA Container Toolkit** installed on the host machine.
+
+### GPU Support in Docker
+
+To enable GPU acceleration in Docker containers:
+
+1. **Verify NVIDIA driver:**
+   ```bash
+   nvidia-smi
+   ```
+
+2. **Install NVIDIA Container Toolkit:**
+   ```bash
+   # Ubuntu/Debian
+   distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+   curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+   curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
+     sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+   sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+   sudo nvidia-ctk runtime configure --runtime=docker
+   sudo systemctl restart docker
+   ```
+
+3. **Verify GPU access:**
+   ```bash
+   docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
+   ```
+
+Without the NVIDIA Container Toolkit, Docker falls back to CPU-only mode automatically.
 
 **Services:**
 
