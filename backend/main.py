@@ -4,17 +4,17 @@ import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
-from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from PIL import Image
 
 from api.endpoints import router as api_router
-from api.roi import router as roi_router, set_roi
-from services.face_detector import get_detector
+from api.roi import router as roi_router
+from api.roi import set_roi
 from db.models import init_db, save_roi
+from services.face_detector import get_detector
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -82,11 +82,12 @@ def root():
 def health():
     import torch
     from sqlalchemy import text
-    from db.models import SessionLocal, engine
-    
+
+    from db.models import SessionLocal
+
     gpu_available = torch.cuda.is_available()
     gpu_device = torch.cuda.get_device_name(0) if gpu_available else None
-    
+
     db_connected = False
     try:
         db = SessionLocal()
@@ -95,7 +96,7 @@ def health():
         db_connected = True
     except Exception as e:
         logger.warning(f"Database health check failed: {e}")
-    
+
     return {
         "status": "healthy" if db_connected else "degraded",
         "gpu": gpu_available,
@@ -117,13 +118,13 @@ async def global_exception_handler(request, exc):
 async def websocket_video(websocket: WebSocket):
     await manager.connect(websocket)
     frame_num = 0
-    
+
     try:
         while True:
             try:
                 data = await websocket.receive_bytes()
                 frame_num += 1
-                
+
                 # Try to open as image
                 try:
                     image = Image.open(io.BytesIO(data))
@@ -132,7 +133,7 @@ async def websocket_video(websocket: WebSocket):
                     logger.warning(f"Invalid image data: {e}")
                     await websocket.send_json({"error": "Invalid image data", "frame": None})
                     continue
-                
+
                 # Detect face (run in thread pool to avoid blocking event loop)
                 loop = asyncio.get_event_loop()
                 bbox = await loop.run_in_executor(None, detector.detect_face, image)
@@ -143,7 +144,7 @@ async def websocket_video(websocket: WebSocket):
                     "frame_id": frame_num
                 }
                 await websocket.send_json(response)
-                
+
                 # Save ROI if face detected
                 if bbox:
                     await manager.broadcast_roi({"roi": bbox})
@@ -151,16 +152,16 @@ async def websocket_video(websocket: WebSocket):
                     global frame_counter
                     frame_counter += 1
                     save_roi(session_id, frame_counter, bbox)
-                    
+
             except WebSocketDisconnect:
                 break
             except Exception as e:
                 logger.error(f"Frame processing error: {e}")
                 try:
                     await websocket.send_json({"error": str(e)})
-                except:
+                except Exception:
                     break
-                
+
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:

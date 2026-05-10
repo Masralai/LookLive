@@ -1,7 +1,8 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Index
-from sqlalchemy.orm import declarative_base, sessionmaker
-from datetime import datetime
 import os
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, Float, Index, Integer, String, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/looklive")
 
@@ -14,7 +15,7 @@ class ROIRecord(Base):
     __table_args__ = (
         Index('idx_session_frame', 'session_id', 'frame_id'),
     )
-    
+
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String(64), nullable=False, index=True)
     frame_id = Column(Integer, nullable=False, index=True)

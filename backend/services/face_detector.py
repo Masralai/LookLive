@@ -1,7 +1,11 @@
+import os
+
 import numpy as np
+import torch
 from PIL import Image
 from ultralytics import YOLO
-import torch
+
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'yolov8n-face.pt')
 
 
 class FaceDetector:
@@ -10,7 +14,7 @@ class FaceDetector:
 
     def __init__(self):
         if FaceDetector._model is None:
-            FaceDetector._model = YOLO('yolov8n-face.pt')
+            FaceDetector._model = YOLO(MODEL_PATH)
             self.device = 0 if torch.cuda.is_available() else 'cpu'
 
     def detect_face(self, image: Image.Image):

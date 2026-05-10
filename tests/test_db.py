@@ -5,24 +5,24 @@ from sqlalchemy import inspect
 def test_roi_record_has_indexes(db_models):
     """Verify ROIRecord has proper indexes for query performance"""
     import db.models as models
-    
-    inspector = inspect(models.Base.metadata.bind)
+
+    inspector = inspect(models.engine)
     indexes = inspector.get_indexes('roi_records')
     index_names = [idx['name'] for idx in indexes]
-    
+
     assert 'idx_session_frame' in index_names, "Missing composite index on session_id + frame_id"
-    assert any('timestamp' in idx['name'] or 'session_id' in str(idx.get('column_names', [])) 
+    assert any('timestamp' in idx['name'] or 'session_id' in str(idx.get('column_names', []))
             for idx in indexes), "Missing timestamp or session_id index"
 
 
 def test_roi_record_columns(db_models):
     """Verify ROIRecord has all required columns"""
     import db.models as models
-    
-    inspector = inspect(models.Base.metadata.bind)
+
+    inspector = inspect(models.engine)
     columns = inspector.get_columns('roi_records')
     column_names = [col['name'] for col in columns]
-    
+
     required = ['id', 'session_id', 'frame_id', 'bbox_x', 'bbox_y', 'bbox_w', 'bbox_h', 'confidence', 'timestamp']
     for col in required:
         assert col in column_names, f"Missing column: {col}"
