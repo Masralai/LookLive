@@ -70,11 +70,10 @@ flowchart TB
     Draw -->|Base64 Image| APIEndpoint
 ```
 
-
-
 ### Data Flow
 
 **Real-Time Detection:**
+
 1. Frontend captures video frame from webcam
 2. Canvas converts frame to JPEG, sends via WebSocket
 3. Backend receives frame, runs YOLOv8-face detection
@@ -83,6 +82,7 @@ flowchart TB
 6. Frontend updates overlay with smoothed coordinates
 
 **REST API (Batch Processing):**
+
 1. Client POSTs image to `/api/video/ingest`
 2. Backend runs face detection
 3. Pillow draws ROI rectangle on image
@@ -244,6 +244,7 @@ Real-time bidirectional streaming. Send JPEG frames as binary data; receive ROI 
 **Prerequisites:** Python 3.11+, Node.js 18+, Docker (for PostgreSQL), CUDA-capable GPU
 
 1. Start PostgreSQL:
+
    ```bash
    docker run -d --name looklive-db -p 5432:5432 \
      -e POSTGRES_USER=postgres \
@@ -253,6 +254,7 @@ Real-time bidirectional streaming. Send JPEG frames as binary data; receive ROI 
    ```
 
 2. Start the backend (port 8000):
+
    ```bash
    cd backend
    python3 -m venv .venv && source .venv/bin/activate
@@ -261,6 +263,7 @@ Real-time bidirectional streaming. Send JPEG frames as binary data; receive ROI 
    ```
 
 3. Start the frontend (port 3000):
+
    ```bash
    cd frontend
    npm install
@@ -281,11 +284,13 @@ docker compose up --build
 To enable GPU acceleration in Docker containers:
 
 1. **Verify NVIDIA driver:**
+
    ```bash
    nvidia-smi
    ```
 
 2. **Install NVIDIA Container Toolkit:**
+
    ```bash
    # Ubuntu/Debian
    distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
@@ -298,6 +303,7 @@ To enable GPU acceleration in Docker containers:
    ```
 
 3. **Verify GPU access:**
+
    ```bash
    docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
    ```
@@ -308,12 +314,37 @@ Without the NVIDIA Container Toolkit, Docker falls back to CPU-only mode automat
 
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:3000 |
-| Backend API | http://localhost:8000 |
-| API Docs | http://localhost:8000/docs |
+| Frontend | <http://localhost:3000> |
+| Backend API | <http://localhost:8000> |
+| API Docs | <http://localhost:8000/docs> |
 
 > [!TIP]
 > Grant camera permissions when prompted by the browser. The frontend will immediately begin capturing frames and streaming them to the backend for detection.
 
 > [!NOTE]
 > On first startup, the YOLOv8n-Face model (~6.2 MB) is downloaded automatically if not present.
+
+---
+
+## Testing
+
+### Prerequisites
+
+- PostgreSQL running locally (or via Docker)
+- Python 3.11+ with venv
+
+### Run Tests
+
+```bash
+# Start PostgreSQL (if not running)
+docker run -d --name looklive-db -p 5432:5432 \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=looklive \
+  postgres:15-alpine
+
+# Activate venv and run tests (from project root, not from backend/)
+source backend/.venv/bin/activate
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/looklive"
+pytest tests/ -v
+```
