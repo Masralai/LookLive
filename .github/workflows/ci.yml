@@ -47,7 +47,7 @@ jobs:
           echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/looklive" >> $GITHUB_ENV
 
       - name: Run tests
-        run: pytest ../tests/ -v
+        run: pytest ${{ github.workspace }}/tests/ -v
 
   lint:
     runs-on: ubuntu-latest
