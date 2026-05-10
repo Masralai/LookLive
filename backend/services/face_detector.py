@@ -10,11 +10,11 @@ class FaceDetector:
 
     def __init__(self):
         if FaceDetector._model is None:
-            FaceDetector._model = YOLO('yolov8n.pt')
+            FaceDetector._model = YOLO('yolov8n-face.pt')
             self.device = 0 if torch.cuda.is_available() else 'cpu'
 
     def detect_face(self, image: Image.Image):
-        """Detect person in PIL Image using YOLO, return bounding box or None"""
+        """Detect face in PIL Image using YOLOv8-face, return bounding box or None"""
         if image is None:
             return None
 
@@ -28,9 +28,8 @@ class FaceDetector:
         best_box = None
         best_conf = 0.0
         for box in boxes:
-            cls = int(box.cls[0].cpu().numpy())
             conf = float(box.conf[0].cpu().numpy())
-            if cls == 0 and conf > best_conf:
+            if conf > best_conf:
                 best_conf = conf
                 best_box = box
 

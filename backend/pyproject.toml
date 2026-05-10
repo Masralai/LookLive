@@ -10,12 +10,16 @@ dependencies = [
     "python-multipart>=0.0.6",
     "sqlalchemy>=2.0.25",
     "psycopg2-binary>=2.9.9",
+    "torch>=2.0.0",
     "ultralytics>=8.0.0",
     "pillow>=10.2.0",
     "python-dotenv>=1.0.0",
     "pydantic>=2.5.3",
     "numpy>=1.26.3",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
 
 [project.optional-dependencies]
 dev = [

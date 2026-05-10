@@ -1,24 +1,24 @@
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Python, uv, curl, and OpenGL libraries for OpenCV
+# Install curl for healthcheck
 RUN apt-get update && apt-get install -y \
-    python3.11 python3-pip curl \
-    libgl1-mesa-glx libglib2.0-0 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
+# Install uv and CPU-only PyTorch first
 RUN pip install uv
+RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 # Copy pyproject.toml first (layer caching)
 COPY pyproject.toml .
 
-# Install dependencies with uv
+# Install dependencies with uv (excluding torch since we installed CPU version)
 RUN uv pip install --system --no-cache -r pyproject.toml || true
 
-# Download YOLOv8n model (standard - will auto-download)
-RUN python3 -c "from ultralytics import YOLO; model = YOLO('yolov8n.pt'); print('Model downloaded')"
+# Copy YOLOv8n-face model
+COPY yolov8n-face.pt .
 
 # Add non-root user
 RUN groupadd -r appgroup -g 1001 && useradd -r -u 1001 -g appgroup -s /bin/sh appuser

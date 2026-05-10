@@ -1,6 +1,7 @@
 import asyncio
 import io
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -19,6 +20,11 @@ from db.models import init_db, save_roi
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Environment-based CORS
+_cors_env = os.getenv("CORS_ORIGINS", "http://localhost:3000")
+CORS_ORIGINS = [origin.strip() for origin in _cors_env.split(",") if origin.strip()] or ["http://localhost:3000"]
+logger.info(f"CORS origins: {CORS_ORIGINS}")
+
 session_id = str(uuid.uuid4())[:8]
 frame_counter = 0
 
@@ -34,7 +40,7 @@ app = FastAPI(title="LookLive Face Detection API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -74,7 +80,30 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    import torch
+    from sqlalchemy import text
+    from db.models import SessionLocal, engine
+    
+    gpu_available = torch.cuda.is_available()
+    gpu_device = torch.cuda.get_device_name(0) if gpu_available else None
+    
+    db_connected = False
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+        db_connected = True
+    except Exception as e:
+        logger.warning(f"Database health check failed: {e}")
+    
+    return {
+        "status": "healthy" if db_connected else "degraded",
+        "gpu": gpu_available,
+        "gpu_device": gpu_device,
+        "model": "loaded" if detector._model else "not_loaded",
+        "model_name": "yolov8n-face.pt",
+        "database": "connected" if db_connected else "disconnected"
+    }
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
