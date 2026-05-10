@@ -16,11 +16,18 @@ interface VideoStreamProps {
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/ws/video";
 
+const SMOOTH_FACTOR = 0.15;
+const CONFIDENCE_THRESHOLD = 0.5;
+const BOX_PADDING = 0.20;
+
 export function VideoStream({ onROIChange }: VideoStreamProps) {
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
   const [roi, setRoi] = useState<ROIData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 640, height: 480 });
+
+  const smoothedRoiRef = useRef<ROIData | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -60,14 +67,30 @@ export function VideoStream({ onROIChange }: VideoStreamProps) {
     ws.onopen = () => {
       setConnected(true);
       setStatus("connected");
+      smoothedRoiRef.current = null;
     };
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.roi) {
-          setRoi(data.roi);
-          onROIChange?.(data.roi);
+          const newROI = data.roi;
+
+          if (newROI.confidence && newROI.confidence >= CONFIDENCE_THRESHOLD) {
+            if (!smoothedRoiRef.current) {
+              smoothedRoiRef.current = { ...newROI };
+            } else {
+              smoothedRoiRef.current = {
+                x: Math.round(smoothedRoiRef.current.x + SMOOTH_FACTOR * (newROI.x - smoothedRoiRef.current.x)),
+                y: Math.round(smoothedRoiRef.current.y + SMOOTH_FACTOR * (newROI.y - smoothedRoiRef.current.y)),
+                w: Math.round(smoothedRoiRef.current.w + SMOOTH_FACTOR * (newROI.w - smoothedRoiRef.current.w)),
+                h: Math.round(smoothedRoiRef.current.h + SMOOTH_FACTOR * (newROI.h - smoothedRoiRef.current.h)),
+                confidence: newROI.confidence
+              };
+            }
+            setRoi(smoothedRoiRef.current);
+            onROIChange?.(smoothedRoiRef.current);
+          }
         }
       } catch (e) {
         console.error("Parse error:", e);
@@ -120,12 +143,19 @@ export function VideoStream({ onROIChange }: VideoStreamProps) {
     startCamera();
     connectWebSocket();
 
-    return () => {
-      stopCamera();
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setCanvasSize({
+            width: entry.contentRect.width,
+            height: entry.contentRect.height
+          });
+        }
+      });
+      resizeObserver.observe(canvas);
+      return () => resizeObserver.disconnect();
+    }
   }, [startCamera, connectWebSocket, stopCamera]);
 
   return (
@@ -146,17 +176,27 @@ export function VideoStream({ onROIChange }: VideoStreamProps) {
         />
         
         {/* ROI Overlay */}
-        {roi && (
-          <div
-            className="absolute border-2 border-lime-spritz pointer-events-none"
-            style={{
-              left: `${roi.x}px`,
-              top: `${roi.y}px`,
-              width: `${roi.w}px`,
-              height: `${roi.h}px`,
-            }}
-          />
-        )}
+        {roi && (() => {
+          const scaleX = canvasSize.width / 640;
+          const scaleY = canvasSize.height / 480;
+          
+          const expandedW = roi.w * (1 + BOX_PADDING);
+          const expandedH = roi.h * (1 + BOX_PADDING);
+          const offsetX = (expandedW - roi.w) / 2;
+          const offsetY = (expandedH - roi.h) / 2;
+          
+          return (
+            <div
+              className="absolute border-2 border-lime-spritz pointer-events-none"
+              style={{
+                left: `${(roi.x - offsetX) * scaleX}px`,
+                top: `${(roi.y - offsetY) * scaleY}px`,
+                width: `${expandedW * scaleX}px`,
+                height: `${expandedH * scaleY}px`,
+              }}
+            />
+          );
+        })()}
       </div>
 
       {/* Status Bar */}

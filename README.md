@@ -1,74 +1,151 @@
-# LookLive — Real-Time Face Detection Video Streaming System
+# LookLive
 
-A containerized backend API to accept a video feed, process it to detect faces using YOLOv8 (no OpenCV), store ROI data in PostgreSQL, and return the feed with ROI overlay to a Next.js frontend.
+> Real-time face detection video streaming with YOLOv8 and WebSockets
 
-## Quick Start
+[![Python](https://img.shields.io/badge/Python-3.11+-green?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 
-```bash
-docker compose up --build
+[Overview](#overview) · [Architecture](#architecture) · [Tech Stack](#tech-stack) · [API Reference](#api-reference) · [Environment Variables](#environment-variables) · [Local Development](#local-development)
+
+---
+
+## Overview
+
+LookLive is a real-time face detection system that captures video from a webcam, runs face detection via [YOLOv8n-Face](https://github.com/breezedeus/YOLOv8-face), stores detected regions of interest (ROI) in PostgreSQL, and renders bounding box overlays in a Next.js frontend.
+
+Key design decisions:
+
+- **No OpenCV** — face detection uses YOLOv8; ROI drawing uses Pillow
+- **Real-time WebSocket streaming** — binary frames sent over `ws://host:8000/ws/video`
+- **GPU acceleration** — CUDA enabled automatically when available; falls back to CPU
+- **EMA-smoothed overlays** — bounding boxes stabilize with a 0.15 exponential moving average factor
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Client["Frontend (Next.js)"]
+        Camera[("WebRTC Camera")]
+        Canvas[HTML Canvas]
+        Overlay[ROI Overlay]
+        WebSocketClient[WebSocket Client]
+    end
+
+    subgraph Backend["Backend (FastAPI)"]
+        WebSocketServer[WebSocket /ws/video]
+        APIEndpoint[REST API /api/video/ingest]
+        FaceDetector[YOLOv8 Face Detector]
+        ROIManager[ROI Manager]
+        DB[PostgreSQL]
+    end
+
+    subgraph Detection["Face Detection Pipeline"]
+        YOLO[YOLOv8n-Face Model]
+        BBox[Bounding Box Parser]
+    end
+
+    Camera -->|Video Stream| Canvas
+    Canvas -->|JPEG Frames| WebSocketClient
+    WebSocketClient -->|Binary Data| WebSocketServer
+    WebSocketServer --> FaceDetector
+    FaceDetector --> YOLO
+    YOLO --> BBox
+    BBox --> ROIManager
+    ROIManager -->|Store ROI| DB
+    ROIManager -->|Broadcast| WebSocketServer
+    WebSocketServer -->|ROI JSON| WebSocketClient
+    WebSocketClient -->|Update| Overlay
+    
+    APIEndpoint --> FaceDetector
+    FaceDetector --> YOLO
+    YOLO --> BBox
+    BBox --> Draw[Draw ROI with Pillow]
+    Draw -->|Base64 Image| APIEndpoint
 ```
 
-- **Frontend**: <http://localhost:3000>
-- **Backend API**: <http://localhost:8000>
-- **API Documentation**: <http://localhost:8000/docs>
+### Data Flow
+
+**Real-Time Detection:**
+1. Frontend captures video frame from webcam
+2. Canvas converts frame to JPEG, sends via WebSocket
+3. Backend receives frame, runs YOLOv8-face detection
+4. ROI coordinates stored in PostgreSQL
+5. Backend broadcasts ROI to all connected clients
+6. Frontend updates overlay with smoothed coordinates
+
+**REST API (Batch Processing):**
+1. Client POSTs image to `/api/video/ingest`
+2. Backend runs face detection
+3. Pillow draws ROI rectangle on image
+4. Returns JSON with ROI data and base64 image
+
+---
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| Backend | FastAPI + Python 3.11 |
-| Face Detection | YOLOv8 (no OpenCV) |
-| Database | PostgreSQL |
-| Frontend | Next.js 16 + TypeScript + Tailwind CSS |
-| Containerization | Docker Compose |
+| Layer | Technology |
+|-------|------------|
+| Frontend | Next.js 16, TypeScript, Tailwind CSS |
+| Backend | FastAPI, Python 3.11, Uvicorn |
+| Face Detection | YOLOv8n-Face (ultralytics) |
+| Image Processing | Pillow (no OpenCV) |
+| Database | PostgreSQL 15 |
+
+---
 
 ## Project Structure
 
 ```
 looklive/
-├── backend/               # FastAPI backend
-│   ├── api/              # API endpoints (endpoints.py, roi.py)
-│   ├── services/         # Face detection (face_detector.py)
-│   ├── db/               # Database models (models.py)
-│   ├── utils/           # Utilities (draw.py)
-│   ├── main.py          # Application entry
-│   ├── pyproject.toml   # Python project config
-│   ├── yolov8n.pt       # YOLO model weights
+├── backend/
+│   ├── api/               # REST + WebSocket endpoints
+│   ├── services/          # Face detection service
+│   ├── db/               # SQLAlchemy models
+│   ├── utils/            # ROI drawing utilities
+│   ├── main.py           # FastAPI application entry
+│   ├── pyproject.toml    # Python dependencies
 │   └── Dockerfile
-├── frontend/             # Next.js frontend
+├── frontend/
 │   ├── src/
-│   │   ├── app/         # Next.js app router
+│   │   ├── app/         # Next.js App Router pages
 │   │   └── components/ # React components
 │   ├── package.json
 │   └── Dockerfile
-├── scripts/              # Startup scripts
-│   └── start-local.sh   # Local development script
-├── tests/               # Integration tests
-├── docs/                # Documentation
+├── tests/                # pytest integration + unit tests
+├── docs/                 # Architecture & design docs
 ├── docker-compose.yml
-├── prd.md               # Product requirements
-└── DESIGN.md            # Design system
+└── DESIGN.md            # Base44 design tokens
 ```
 
-## Features
+---
 
-- **Real-time face detection** via WebSocket connection
-- **3 API endpoints** for video ingest, ROI retrieval, and real-time streaming
-- **PostgreSQL storage** for ROI data with session and frame tracking
-- **No OpenCV** - uses YOLOv8 for detection and Pillow for drawing
-- **Docker Compose** for easy deployment
-- **Auto-reload** for development
+## API Reference
 
-## API Endpoints
+Base URL: `http://localhost:8000`
+
+### GET /health
+
+Health check with system status.
+
+```json
+{
+  "status": "healthy",
+  "gpu": true,
+  "model": "loaded",
+  "model_name": "yolov8n-face.pt",
+  "database": "connected"
+}
+```
 
 ### POST /api/video/ingest
 
-Upload a video frame for processing. Returns the processed image with ROI overlay.
+Upload a single video frame for face detection. Returns the processed image with ROI drawn on it.
 
-**Request:**
-
-- Content-Type: `multipart/form-data`
-- Body: `file` (image file)
+**Request:** `multipart/form-data` with field `file` (image)
 
 **Response:**
 
@@ -76,13 +153,13 @@ Upload a video frame for processing. Returns the processed image with ROI overla
 {
   "status": "ok",
   "roi": {"x": 100, "y": 150, "w": 200, "h": 250, "confidence": 0.95},
-  "frame": "<base64 encoded image>"
+  "frame": "<base64-encoded image>"
 }
 ```
 
 ### GET /api/roi
 
-Get the latest detected ROI data.
+Retrieve the most recently detected ROI.
 
 **Response:**
 
@@ -94,10 +171,9 @@ Get the latest detected ROI data.
 
 ### WebSocket /ws/video
 
-Real-time video stream processing. Send binary image data, receive ROI coordinates.
+Real-time bidirectional streaming. Send JPEG frames as binary data; receive ROI coordinates.
 
-**Client sends:** Binary JPEG image data
-
+**Client sends:** Raw binary JPEG image  
 **Server sends:**
 
 ```json
@@ -107,65 +183,104 @@ Real-time video stream processing. Send binary image data, receive ROI coordinat
 }
 ```
 
+> [!NOTE]
+> When no face is detected, `roi` is `null`. The frontend filters detections below confidence `0.5`.
+
+---
+
 ## Database Schema
 
-**Table: roi_records**
+**Table: `roi_records`**
 
 | Column | Type | Description |
 |--------|------|-------------|
-| id | Integer | Primary key |
-| session_id | String | Session identifier |
-| frame_id | Integer | Frame number within session |
-| bbox_x | Integer | Bounding box X coordinate |
-| bbox_y | Integer | Bounding box Y coordinate |
-| bbox_w | Integer | Bounding box width |
-| bbox_h | Integer | Bounding box height |
-| confidence | Float | Detection confidence score |
-| timestamp | DateTime | Record creation time |
+| `id` | Integer | Primary key |
+| `session_id` | String | Session identifier |
+| `frame_id` | Integer | Frame number within session |
+| `bbox_x` | Integer | Bounding box X coordinate |
+| `bbox_y` | Integer | Bounding box Y coordinate |
+| `bbox_w` | Integer | Bounding box width |
+| `bbox_h` | Integer | Bounding box height |
+| `confidence` | Float | Detection confidence score |
+| `timestamp` | DateTime | Record creation time |
 
-Indexes: `session_id + frame_id`, `session_id`, `timestamp`
+**Indexes:** `session_id + frame_id` (composite), `session_id`, `timestamp`
 
-## Local Development
-
-For local development without Docker containers:
-
-```bash
-./scripts/start-local.sh
-```
-
-This script will:
-
-1. Start PostgreSQL container via Docker
-2. Open a new terminal for the backend (port 8000)
-3. Open a new terminal for the frontend (port 3000)
-
-**Available commands:**
-
-```bash
-./scripts/start-local.sh start     # Start all services
-./scripts/start-local.sh stop      # Stop all services
-./scripts/start-local.sh restart   # Restart all services
-./scripts/start-local.sh status   # Show service status
-./scripts/start-local.sh db       # Start only PostgreSQL
-```
-
-**Requirements:**
-
-- Docker (for PostgreSQL)
-- Python 3.11+
-- Node.js 18+
+---
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | postgresql://postgres:postgres@db:5432/looklive | PostgreSQL connection string |
-| `NEXT_PUBLIC_WS_URL` | ws://localhost:8000/ws/video | WebSocket URL for frontend |
+| `DATABASE_URL` | `postgresql://postgres:postgres@db:5432/looklive` | PostgreSQL connection string |
+| `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated allowed origins |
+| `NEXT_PUBLIC_WS_URL` | `ws://localhost:8000/ws/video` | WebSocket URL for frontend |
 
-## PRD Requirements Met
+> **Note**: For production deployment, update `CORS_ORIGINS` to your production frontend URL.
 
-- 3 API endpoints (POST /api/video/ingest, WebSocket /ws/video, GET /api/roi)
-- No OpenCV (using YOLOv8)
-- ROI stored in PostgreSQL
-- Draw ROI without OpenCV (using Pillow)
-- Docker Compose (frontend + backend + PostgreSQL)
+---
+
+## Face Detection Model
+
+| Property | Value |
+|----------|-------|
+| Model | YOLOv8n-Face (nano) |
+| Training dataset | WIDERFace |
+| Accuracy | 93.79% (Easy) / 91.82% (Medium) / 79.38% (Hard) |
+| Model size | 6.2 MB |
+| Inference | CPU only (CUDA available for local dev) |
+
+---
+
+## Local Development
+
+### With GPU Support (recommended)
+
+**Prerequisites:** Python 3.11+, Node.js 18+, Docker (for PostgreSQL), CUDA-capable GPU
+
+1. Start PostgreSQL:
+   ```bash
+   docker run -d --name looklive-db -p 5432:5432 \
+     -e POSTGRES_USER=postgres \
+     -e POSTGRES_PASSWORD=postgres \
+     -e POSTGRES_DB=looklive \
+     postgres:15-alpine
+   ```
+
+2. Start the backend (port 8000):
+   ```bash
+   cd backend
+   python3 -m venv .venv && source .venv/bin/activate
+   pip install -e .
+   CORS_ORIGINS=http://localhost:3000 uvicorn main:app --reload --port 8000
+   ```
+
+3. Start the frontend (port 3000):
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+### Docker Compose (CPU only, no GPU)
+
+```bash
+docker compose up --build
+```
+
+> [!NOTE]
+> Docker Compose does not include GPU passthrough. For GPU acceleration, use the local development setup above.
+
+**Services:**
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
+
+> [!TIP]
+> Grant camera permissions when prompted by the browser. The frontend will immediately begin capturing frames and streaming them to the backend for detection.
+
+> [!NOTE]
+> On first startup, the YOLOv8n-Face model (~6.2 MB) is downloaded automatically if not present.
