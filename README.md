@@ -70,7 +70,7 @@ flowchart TB
     Draw -->|Base64 Image| APIEndpoint
 ```
 
-![Architecture Diagram](./architecture.png)
+
 
 ### Data Flow
 
