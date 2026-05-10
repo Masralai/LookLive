@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install uv and CPU-only PyTorch first
 RUN pip install uv
-RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip install torch --index-url https://download.pytorch.org/whl/cu124
 
 # Copy pyproject.toml first (layer caching)
 COPY pyproject.toml .
